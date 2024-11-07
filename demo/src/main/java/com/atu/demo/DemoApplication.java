@@ -13,6 +13,14 @@ public class DemoApplication {
 		private DemoApplication() {
 			// Prevent instantiation
 		}
-	
+	/**
+ * Main entry point for the application.
+ * 
+ * @param args command line arguments
+ */
+public static void main(String[] args) {
+    // method body
+}
+
 	
 }
