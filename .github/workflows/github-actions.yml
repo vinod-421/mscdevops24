@@ -28,6 +28,6 @@ jobs:
         run: ls -R
       - name: Build with Maven
         run: mvn clean install
-        working-directory: ./demo/demo
+        working-directory: ./demo
       - name: Run tests
-        run: mvn -f ./demo/demo/pom.xml test
+        run: mvn -f ./demo/pom.xml test
