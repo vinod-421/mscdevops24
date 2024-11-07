@@ -18,9 +18,7 @@ public class DemoApplication {
  * 
  * @param args command line arguments
  */
-public static void main(String[] args) {
-    // method body
-}
+
 
 	
 }
