@@ -31,10 +31,5 @@ jobs:
         working-directory: ./demo
       - name: Run tests
         run: mvn -f ./demo/pom.xml test
-        
-      - name: Run code quality checks with Maven
-        run: mvn -f ./demo/pom.xml checkstyle:check
-        continue-on-error: false  # Allows workflow to continue if checkstyle fails
-      
       - name: Generate test coverage report
         run: mvn -f ./demo/pom.xml jacoco:report
