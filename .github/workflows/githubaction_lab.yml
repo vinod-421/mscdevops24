@@ -15,9 +15,6 @@ jobs:
       - name: Authenticate GitHub CLI
         run: echo "${{ secrets.TOKEN }}" | gh auth login --with-token
 
-      - name: Debug Comment Body
-        run: echo "Comment Body: ${{ github.event.comment.body }}"
-
       - name: Move Issue Based on Comment
         run: |
           set -e
