@@ -20,7 +20,7 @@ jobs:
           set -e
           COMMENT_BODY="${{ github.event.comment.body }}"
           ISSUE_NUMBER="${{ github.event.issue.number }}"
-          PROJECT_ID="PVT_kwHOCtxdrs4AsgwK"  # Replace with your project ID
+          PROJECT_ID="PVT_kwHOCtxfb84Asjcz"  # Replace with your project ID
 
           # Define rules and corresponding columns
           declare -A RULES
