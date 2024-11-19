@@ -1,46 +1,76 @@
+name: Update Kanban Board Based on Issue Comment
+
 on:
   issue_comment:
     types: [created]
 
 jobs:
-  move-issue:
+  update-kanban-board:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
       - name: Authenticate GitHub CLI
         run: echo "${{ secrets.TOKEN }}" | gh auth login --with-token
 
-      - name: Check GitHub CLI Authentication
-        run: gh auth status
+      - name: Debug Comment Body
+        run: echo "Comment Body: ${{ github.event.comment.body }}"
 
-      # Optional: Fetch all projects for debugging (if needed)
-      - name: Debug Project List
+      - name: Move Issue Based on Comment
         run: |
-          gh project list --format json | jq
+          set -e
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          ISSUE_NUMBER="${{ github.event.issue.number }}"
+          PROJECT_ID="PVT_kwHOCtxdrs4AsgwK"  # Replace with your project ID
 
-      - name: Get Project Number
-        id: get_project
-        run: |
-          PROJECT_NUMBER="PVT_kwHOCtxfb84Asjcz"
-          if [[ -z "$PROJECT_NUMBER" ]]; then
-            echo "Error: Project 'New_Project' not found!"
+          # Define rules and corresponding columns
+          declare -A RULES
+          RULES[Done]="Done"
+          RULES[In_Progress]="In Progress"
+          RULES[Backlog]="Backlog"
+
+          # Determine the target column based on the comment body
+          TARGET_COLUMN=""
+          for RULE in "${!RULES[@]}"; do
+            if [[ "$COMMENT_BODY" == *"$RULE"* ]]; then
+              TARGET_COLUMN="${RULES[$RULE]}"
+              break
+            fi
+          done
+
+          if [[ -z "$TARGET_COLUMN" ]]; then
+            echo "No matching rule found in the comment. Exiting."
+            exit 0
+          fi
+
+          # Fetch columns from the project
+          COLUMN_LIST=$(curl -s -H "Authorization: token ${{ secrets.TOKEN }}" \
+            "https://api.github.com/projects/$PROJECT_ID/columns")
+          
+          echo "Column List: $COLUMN_LIST"
+
+          # Get the column ID for the target column
+          COLUMN_ID=$(echo "$COLUMN_LIST" | jq -r ".[] | select(.name==\"$TARGET_COLUMN\") | .id")
+
+          if [[ -z "$COLUMN_ID" ]]; then
+            echo "Error: Column $TARGET_COLUMN not found!"
             exit 1
           fi
-          echo "PROJECT_NUMBER=${PROJECT_NUMBER}" >> $GITHUB_ENV
 
-      - name: Get Issue URL
-        id: get_issue
-        run: |
-          ISSUE_URL=$(gh issue view "${{ github.event.issue.number }}" --json url | jq -r '.url')
-          if [[ -z "$ISSUE_URL" ]]; then
-            echo "Error: Unable to fetch issue URL!"
+          # Get the card ID for the issue
+          CARD_ID=$(curl -s -H "Authorization: token ${{ secrets.TOKEN }}" \
+            "https://api.github.com/projects/columns/$COLUMN_ID/cards" | jq -r ".[] | select(.content_url | contains(\"/issues/$ISSUE_NUMBER\")) | .id")
+
+          if [[ -z "$CARD_ID" ]]; then
+            echo "Error: Issue card not found for issue #$ISSUE_NUMBER!"
             exit 1
           fi
-          echo "ISSUE_URL=${ISSUE_URL}" >> $GITHUB_ENV
 
-      - name: Debug Outputs
-        run: |
-          echo "Project Number: ${{ env.PROJECT_NUMBER }}"
-          echo "Issue URL: ${{ env.ISSUE_URL }}"
+          # Move the card to the target column
+          curl -X POST -H "Authorization: token ${{ secrets.TOKEN }}" \
+            -d "{\"column_id\": \"$COLUMN_ID\"}" \
+            "https://api.github.com/projects/columns/cards/$CARD_ID/moves"
+
+          echo "Successfully moved issue #$ISSUE_NUMBER to $TARGET_COLUMN column."
