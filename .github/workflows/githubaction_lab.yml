@@ -1,73 +1,108 @@
-name: Update Kanban Board Based on Issue Comment
-
+name: Issue Management
 on:
   issue_comment:
     types: [created]
-
 jobs:
-  update-kanban-board:
+  get-issue-parameters:
     runs-on: ubuntu-latest
-
+    outputs:
+      ISSUE_ID: ${{ steps.get_issue_id.outputs.ISSUE_ID }} #fetch issue ID
+      PROJECT_ID: ${{ steps.get_project_id.outputs.PROJECT_ID }} #fetch project ID
+      FIELD_ID: ${{ steps.get_field_id.outputs.FIELD_ID }} #fetch status (Backlog, In-progress, Done)
+      INPROGRESS_OPTION_ID: ${{ steps.get_inprogress_option_id.outputs.INPROGRESS_OPTION_ID }} #fetch In-Progress option
+      DONE_OPTION_ID: ${{ steps.get_done_option_id.outputs.DONE_OPTION_ID }} #fetch Done option
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
+      - name: Checkout code
+        uses: actions/checkout@v1
+ 
       - name: Authenticate GitHub CLI
         run: echo "${{ secrets.TOKEN }}" | gh auth login --with-token
-
-      - name: Move Issue Based on Comment
+ 
+      - name: Check GitHub CLI Authentication
+        run: gh auth status
+     
+      - name: Get Project Number
+        id: get_project
         run: |
-          set -e
-          COMMENT_BODY="${{ github.event.comment.body }}"
-          ISSUE_NUMBER="${{ github.event.issue.number }}"
-          PROJECT_ID="PVT_kwHOCtxfb84Asjcz"  # Replace with your project ID
-
-          # Define rules and corresponding columns
-          declare -A RULES
-          RULES[Done]="Done"
-          RULES[In_Progress]="In Progress"
-          RULES[Backlog]="Backlog"
-
-          # Determine the target column based on the comment body
-          TARGET_COLUMN=""
-          for RULE in "${!RULES[@]}"; do
-            if [[ "$COMMENT_BODY" == *"$RULE"* ]]; then
-              TARGET_COLUMN="${RULES[$RULE]}"
-              break
-            fi
-          done
-
-          if [[ -z "$TARGET_COLUMN" ]]; then
-            echo "No matching rule found in the comment. Exiting."
-            exit 0
-          fi
-
-          # Fetch columns from the project
-          COLUMN_LIST=$(curl -s -H "Authorization: token ${{ secrets.TOKEN }}" \
-            "https://api.github.com/projects/$PROJECT_ID/columns")
-          
-          echo "Column List: $COLUMN_LIST"
-
-          # Get the column ID for the target column
-          COLUMN_ID=$(echo "$COLUMN_LIST" | jq -r ".[] | select(.name==\"$TARGET_COLUMN\") | .id")
-
-          if [[ -z "$COLUMN_ID" ]]; then
-            echo "Error: Column $TARGET_COLUMN not found!"
-            exit 1
-          fi
-
-          # Get the card ID for the issue
-          CARD_ID=$(curl -s -H "Authorization: token ${{ secrets.TOKEN }}" \
-            "https://api.github.com/projects/columns/$COLUMN_ID/cards" | jq -r ".[] | select(.content_url | contains(\"/issues/$ISSUE_NUMBER\")) | .id")
-
-          if [[ -z "$CARD_ID" ]]; then
-            echo "Error: Issue card not found for issue #$ISSUE_NUMBER!"
-            exit 1
-          fi
-
-          # Move the card to the target column
-          curl -X POST -H "Authorization: token ${{ secrets.TOKEN }}" \
-            -d "{\"column_id\": \"$COLUMN_ID\"}" \
-            "https://api.github.com/projects/columns/cards/$CARD_ID/moves"
-
-          echo "Successfully moved issue #$ISSUE_NUMBER to $TARGET_COLUMN column."
+          PROJECT_NUMBER=$(gh project list --format json | jq -r '.projects[] | select(.title=="github-actions-lab") | .number')
+          echo "PROJECT_NUMBER=${PROJECT_NUMBER}" >> $GITHUB_ENV
+ 
+      - name: Get Issue URL
+        id: get_issue_url
+        run: |
+          ISSUE_URL=$(gh issue view "${{ github.event.issue.number }}" --json url | jq -r '.url')
+          echo "ISSUE_URL=${ISSUE_URL}" >> $GITHUB_ENV
+     
+      - name: Get Issue ID
+        id: get_issue_id
+        run: |
+          ISSUE_ID=$(gh project item-list ${{env.PROJECT_NUMBER}} --owner '@me' --format json | jq -r '.items[] | select(.content.number==${{ github.event.issue.number }}) | .id')
+          echo "ISSUE_ID=${ISSUE_ID}" >> $GITHUB_ENV
+          echo "ISSUE_ID=${ISSUE_ID}" >> $GITHUB_OUTPUT
+          # echo "::set-output name=issue_id::${ISSUE_ID}"
+ 
+      - name: Get Field ID
+        id: get_field_id
+        run: |
+          FIELD_ID=$(gh project field-list ${{env.PROJECT_NUMBER}} --owner "@me" --format json | jq -r '.fields[] | select(.name=="Status") | .id')
+          echo "FIELD_ID=${FIELD_ID}" >> $GITHUB_ENV
+          echo "FIELD_ID=${FIELD_ID}" >> $GITHUB_OUTPUT
+          # echo "::set-output name=field_id::${FIELD_ID}"
+ 
+      - name: Get Project ID
+        id: get_project_id
+        run: |
+          PROJECT_ID=$(gh project list --format json | jq -r '.projects[] | select(.title=="github-actions-lab") | .id')
+          echo "PROJECT_ID=${PROJECT_ID}" >> $GITHUB_ENV
+          echo "PROJECT_ID=${PROJECT_ID}" >> $GITHUB_OUTPUT
+          # echo "::set-output name=project_id::${PROJECT_ID}"
+     
+      - name: Get InProgress Option ID
+        id: get_inprogress_option_id
+        run: |
+          INPROGRESS_OPTION_ID=$(gh project field-list ${{env.PROJECT_NUMBER}} --owner "@me" --format json | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="In progress") | .id')
+          echo "INPROGRESS_OPTION_ID=${INPROGRESS_OPTION_ID}" >> $GITHUB_ENV
+          echo "INPROGRESS_OPTION_ID=${INPROGRESS_OPTION_ID}" >> $GITHUB_OUTPUT
+          # echo "::set-output name=inprogress_option_id::${INPROGRESS_OPTION_ID}"
+     
+      - name: Get Done Option ID
+        id: get_done_option_id
+        run: |
+          DONE_OPTION_ID=$(gh project field-list ${{env.PROJECT_NUMBER}} --owner "@me" --format json | jq -r '.fields[] | select(.name=="Status") | .options[] | select(.name=="Done") | .id')
+          echo "DONE_OPTION_ID=${DONE_OPTION_ID}" >> $GITHUB_ENV
+          echo "DONE_OPTION_ID=${DONE_OPTION_ID}" >> $GITHUB_OUTPUT
+         
+ 
+  move-issue:
+    runs-on: ubuntu-latest
+    needs: get-issue-parameters
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+ 
+      - name: Move Issue to In-Progress if Keyword Found #move issue to In-Progress
+        if: contains(github.event.comment.body, 'progress')
+        run: |
+          echo "Moving to In-Progress"
+          echo "ISSUE_ID:" ${{ needs.get-issue-parameters.outputs.ISSUE_ID }} "FIELD_ID:" ${{ needs.get-issue-parameters.outputs.FIELD_ID }} "PROJECT_ID:" ${{ needs.get-issue-parameters.outputs.PROJECT_ID }} "Single-select-option-id:" ${{needs.get-issue-parameters.outputs.INPROGRESS_OPTION_ID}}
+          gh project item-edit --id ${{needs.get-issue-parameters.outputs.ISSUE_ID}} --field-id ${{needs.get-issue-parameters.outputs.FIELD_ID}} --project-id ${{needs.get-issue-parameters.outputs.PROJECT_ID}} --single-select-option-id ${{needs.get-issue-parameters.outputs.INPROGRESS_OPTION_ID}}
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN }}
+          GH_REPO: ${{ github.repository }}
+ 
+  close-issue:
+    runs-on: ubuntu-latest
+    needs: get-issue-parameters
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+ 
+      - name: Move Issue to Done if Keyword Found #move issue to Done
+        if: contains(github.event.comment.body, 'closed')
+        run: |
+          echo "Moving to Done"
+          echo "ISSUE_ID:" ${{ needs.get-issue-parameters.outputs.ISSUE_ID }} "FIELD_ID:" ${{ needs.get-issue-parameters.outputs.FIELD_ID }} "PROJECT_ID:" ${{ needs.get-issue-parameters.outputs.PROJECT_ID }} "Single-select-option-id:" ${{needs.get-issue-parameters.outputs.DONE_OPTION_ID}}
+          gh project item-edit --id ${{needs.get-issue-parameters.outputs.ISSUE_ID}} --field-id ${{needs.get-issue-parameters.outputs.FIELD_ID}} --project-id ${{needs.get-issue-parameters.outputs.PROJECT_ID}} --single-select-option-id ${{needs.get-issue-parameters.outputs.DONE_OPTION_ID}}
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN }}
+          GH_REPO: ${{ github.repository }}
