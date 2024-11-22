@@ -1,6 +1,89 @@
 name: Issue Management
 on:
-  issue_comment:
+  issue_comment:name: Update Kanban Board Based on Commit Message
+ 
+on:
+  push:
+    branches:
+      - main  # Trigger the workflow on push to the main branch
+ 
+jobs:
+  update-kanban-board:
+    runs-on: ubuntu-latest
+ 
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+ 
+      - name: Get commit message
+        id: commit_message
+        run: |
+          echo "COMMIT_MESSAGE=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+ 
+      - name: Debug commit message
+        run: |
+           echo "Commit message: ${{ env.COMMIT_MESSAGE }}"
+ 
+      - name: Move issue based on commit message
+        run: |
+          COMMIT_MSG="${{ env.COMMIT_MESSAGE }}"
+ 
+          # Define commit message rules and corresponding columns
+          RULES=("Done" "Ready" "In Progress")
+          COLUMNS=("Done" "Ready" "In Progress")
+ 
+          # Extract the issue number and target column from the commit message
+          for rule in "${RULES[@]}"; do
+            if [[ "$COMMIT_MSG" == *"$rule"* ]]; then
+              TARGET_COLUMN="$rule"
+              ISSUE_NUMBER=$(echo "$COMMIT_MSG" | grep -oP '#\d+' | tr -d '#')
+              echo "Moving issue #$ISSUE_NUMBER to $TARGET_COLUMN column"
+              # Fetch project columns dynamically based on the project name
+              PROJECT_ID="PVT_kwHOCtxdrs4AsgwK"  # Use your project ID here
+              REPO_OWNER="${{ github.repository_owner }}"
+              REPO_NAME="${{ github.event.repository.name }}"
+ 
+              # Get the columns for the project
+              echo "Fetching columns for project $PROJECT_ID..."
+              COLUMN_LIST=$(curl -s -H "Authorization: token ${{ secrets.SID_PAT }}" \
+                "https://api.github.com/projects/$PROJECT_ID/columns")
+ 
+              # Debug the raw API response
+              echo "API Response: $COLUMN_LIST"
+ 
+              # Check the format of the response
+              # If the response is not an array of columns, this could be the root cause of the error.
+              if [[ "$COLUMN_LIST" == *"error"* ]]; then
+                echo "Error in API response: $COLUMN_LIST"
+                exit 1
+              fi
+ 
+              # Get the column ID for the target column
+              COLUMN_ID=$(echo "$COLUMN_LIST" | jq -r ".[] | select(.name==\"$TARGET_COLUMN\") | .id")
+ 
+              if [[ -z "$COLUMN_ID" ]]; then
+                echo "Error: Column $TARGET_COLUMN not found!"
+                exit 1
+              fi
+ 
+              # Find the issue card in the column and move it
+              echo "Looking for card for issue #$ISSUE_NUMBER in column $TARGET_COLUMN..."
+              CARD_ID=$(curl -s -H "Authorization: token ${{ secrets.SID_PAT }}" \
+                "https://api.github.com/projects/columns/$COLUMN_ID/cards" | jq -r ".[] | select(.content_url | contains(\"/issues/$ISSUE_NUMBER\")) | .id")
+ 
+              if [[ -z "$CARD_ID" ]]; then
+                echo "Error: Issue card not found for issue #$ISSUE_NUMBER!"
+                exit 1
+              fi
+ 
+              # Move the card to the target column
+              echo "Moving card for issue #$ISSUE_NUMBER to the $TARGET_COLUMN column..."
+              curl -X POST -H "Authorization: token ${{ secrets.SID_PAT }}" \
+                -d "{\"column_id\": \"$COLUMN_ID\"}" \
+                "https://api.github.com/projects/columns/cards/$CARD_ID/moves"
+              break
+            fi
+          done
     types: [created]
 jobs:
   get-issue-parameters:
