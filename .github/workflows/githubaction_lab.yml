@@ -31,9 +31,18 @@ jobs:
  
     # Step 3: Move issues based on comment content
     - name: Move Issues on Kanban
-      uses: alex-page/github-project-automation-plus@v0.6.0
+     # uses: alex-page/github-project-automation-plus@v0.6.0
+     # with:
+      #  repo-token: ${{ secrets.token }}
+      #  project_id: PVT_kwHOCtxfb84Asjcz
+      #  column: "Done"
+      #  action: update 
+
+      uses: leonsteinhaeuser/project-beta-automations@v2.1.0
+      if: ${{ github.event_name == 'issue_comment' && github.event.action == 'Done' }}
       with:
-        repo-token: ${{ secrets.token }}
-        project_id: PVT_kwHOCtxfb84Asjcz
-        column: "Done"
-        action: update
+         gh_token: ${{ secrets.token }}
+         project_id: 7
+         #resource_node_id: ${{ github.event.pull_request.node_id }}
+         move_related_issues: true
+         status_value: 'Done' # Target status
