@@ -21,7 +21,7 @@ jobs:
         GH_TOKEN: ${{ secrets.token }}
  
     - name: Debug Project Information
-      run: gh project view 5 --format json --owner vinod-421 | jq '.columns'
+      run: gh project view 7 --format json --owner vinod-421 | jq '.columns'
       env:
         GH_TOKEN: ${{ secrets.token }}
  
@@ -31,6 +31,6 @@ jobs:
       uses: alex-page/github-project-automation-plus@v0.6.0
       with:
         repo-token: ${{ secrets.token }}
-        project: 5
+        project: 7
         column: "Done"
         action: update
