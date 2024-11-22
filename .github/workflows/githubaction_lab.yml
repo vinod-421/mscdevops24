@@ -8,6 +8,9 @@ on:
 jobs:
   move-issues:
     runs-on: ubuntu-latest
+
+    env:
+      ACTIONS_STEP_DEBUG: true  # Enable detailed debug logs
  
     steps:
     # Step 1: Check out the code
