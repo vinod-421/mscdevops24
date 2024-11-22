@@ -44,6 +44,7 @@ jobs:
       with:
          gh_token: ${{ secrets.token }}
          project_id: 7
+         user: "@me"
          #resource_node_id: ${{ github.event.pull_request.node_id }}
          move_related_issues: true
          status_value: 'Done' # Target status
