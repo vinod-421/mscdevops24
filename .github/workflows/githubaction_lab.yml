@@ -39,7 +39,8 @@ jobs:
       #  action: update 
 
       uses: leonsteinhaeuser/project-beta-automations@v2.1.0
-      if: ${{ github.event_name == 'issue_comment' && github.event.action == 'Done' }}
+      #if: ${{ github.event_name == 'issue_comment' && github.event.action == 'Done' }}
+      if: ${{ github.event_name == 'issue_comment' && github.event.action == 'created' && contains(github.event.comment.body, 'Done') }}
       with:
          gh_token: ${{ secrets.token }}
          project_id: 7
