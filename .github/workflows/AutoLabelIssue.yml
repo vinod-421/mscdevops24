@@ -28,7 +28,7 @@ jobs:
             if (issueBody.includes('enhancement')) {
               labelsToAdd.push('enhancement');
             }
-            if (issueBody.includes('documentation')) {
+            if (issueBody.includes('document')) {
               labelsToAdd.push('documentation');
             }
  
