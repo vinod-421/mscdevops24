@@ -2,8 +2,10 @@ name: Auto-Label Issues
  
 on:
   issues:
-    types: [opened] # Trigger the workflow when a new issue is created
- 
+    types: 
+       - opened # Trigger the workflow when a new issue is created
+       - edited # Trigger the workflow when a new issue is edited
+    
 jobs:
   auto-label:
     runs-on: ubuntu-latest # Run on the latest Ubuntu environment
@@ -42,5 +44,3 @@ jobs:
             } else {
               console.log("No matching labels found in the issue description.");
             }
-
-has context menu
